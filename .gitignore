@@ -1,0 +1,33 @@
+# Environment and Config
+.env
+
+# Data directories
+raw-data/
+*.tmp
+
+# Compiled binaries
+gold-websocket
+sftp-client
+
+# Static files (if auto-generated)
+# static/
+
+# Logs
+*.log
+logs/
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
