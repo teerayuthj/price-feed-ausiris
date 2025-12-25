@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Real-time USD exchange rate and gold price monitoring dashboard">
+    <title>Gold Socket | Rate Monitor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- ===== TOP NAVBAR ===== -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-brand">
+                <div class="brand-icon">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <circle cx="16" cy="16" r="14" fill="url(#gold-gradient)" />
+                        <path d="M16 8L20 14H18V18H22V22H18V24H14V22H10V18H14V14H12L16 8Z" fill="white"/>
+                        <defs>
+                            <linearGradient id="gold-gradient" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+                                <stop stop-color="#fbbf24" />
+                                <stop offset="1" stop-color="#d97706" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h1>Gold Socket</h1>
+                    <span class="brand-tagline">Real-time Monitor</span>
+                </div>
+            </div>
+
+            <div class="navbar-center">
+                <div class="status-badge" id="navbar-status">
+                    <span class="status-dot"></span>
+                    <span class="status-label">Disconnected</span>
+                </div>
+            </div>
+
+            <div class="navbar-actions">
+                <button class="icon-btn" onclick="GoldSocketApp.fetchData()" title="Refresh USD">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" onclick="GoldSocketApp.fetchMarketData()" title="Refresh Market">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3v18h18M18 9l-5 5-4-4-3 3"/>
+                    </svg>
+                </button>
+                <button class="icon-btn theme-toggle" onclick="GoldSocketApp.toggleTheme()" title="Toggle theme">
+                    <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="4"/>
+                        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+                    </svg>
+                    <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" onclick="GoldSocketApp.toggleJson()" title="View JSON">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ===== MARKET CLOSED BANNER ===== -->
+    <div class="market-closed-banner" id="market-closed-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            </div>
+            <div class="banner-text">
+                <span class="banner-title">ตลาดปิดทำการ</span>
+                <span class="banner-subtitle" id="banner-subtitle">แสดงราคาล่าสุด • เปิดทำการ: จันทร์ 09:00 น.</span>
+            </div>
+        </div>
+        <button class="banner-close" onclick="GoldSocketApp.closeBanner()" title="ปิด">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- ===== MAIN CONTAINER ===== -->
+    <div class="container">
+        <!-- BENTO GRID LAYOUT -->
+        <div class="bento-grid">
+
+            <!-- USD RATE CARD (Large, spans 2 columns) -->
+            <div class="bento-card usd-card" data-bento="large">
+                <div class="bento-header">
+                    <div class="bento-title">
+                        <div class="title-icon usd-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 18V6"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3>USD Exchange Rate</h3>
+                            <p class="subtitle">Thai Baht per US Dollar</p>
+                        </div>
+                    </div>
+                    <div class="market-badge" id="usd-market-status">
+                        <span class="badge-dot"></span>
+                        <span>Closed</span>
+                    </div>
+                </div>
+
+                <div class="usd-content">
+                    <div class="usd-main">
+                        <div class="rate-display">
+                            <span class="rate-label">Buy</span>
+                            <span class="rate-value" id="usd-buy">--.--</span>
+                        </div>
+                        <div class="rate-divider"></div>
+                        <div class="rate-display">
+                            <span class="rate-label">Sell</span>
+                            <span class="rate-value" id="usd-sell">--.--</span>
+                        </div>
+                    </div>
+
+                    <div class="usd-spread">
+                        <span class="spread-label">Spread</span>
+                        <span class="spread-value" id="usd-spread">--.--</span>
+                    </div>
+                </div>
+
+                <div class="usd-footer">
+                    <div class="rate-change" id="rate-change">
+                        <span class="change-icon">-</span>
+                        <span class="change-value">Waiting for data...</span>
+                    </div>
+                    <span class="update-time" id="usd-time">--:--:--</span>
+                </div>
+
+                <!-- Mini sparkline -->
+                <div class="sparkline-container">
+                    <svg class="sparkline" id="usd-sparkline" viewBox="0 0 200 40" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="sparkline-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style="stop-color:currentColor;stop-opacity:0.3" />
+                                <stop offset="100%" style="stop-color:currentColor;stop-opacity:0" />
+                            </linearGradient>
+                        </defs>
+                        <path class="sparkline-area" d=""/>
+                        <path class="sparkline-line" d=""/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- CONNECTION STATUS CARD -->
+            <div class="bento-card status-card" data-bento="small">
+                <div class="bento-header">
+                    <h3>Connection</h3>
+                </div>
+                <div class="status-content">
+                    <div class="status-indicator-large" id="connection-status">
+                        <div class="pulse-ring"></div>
+                        <svg class="status-icon disconnected-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                        <svg class="status-icon connected-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    </div>
+                    <span class="status-text-large" id="status-text-large">Disconnected</span>
+                </div>
+                <div class="status-actions">
+                    <button class="status-btn connect-btn" onclick="GoldSocketApp.connect()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Connect
+                    </button>
+                    <button class="status-btn disconnect-btn" onclick="GoldSocketApp.disconnect()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="6" y="4" width="4" height="16"/>
+                            <rect x="14" y="4" width="4" height="16"/>
+                        </svg>
+                        Stop
+                    </button>
+                </div>
+            </div>
+
+            <!-- QUICK STATS CARD -->
+            <div class="bento-card stats-card" data-bento="small">
+                <div class="bento-header">
+                    <h3>Today's Stats</h3>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Updates</span>
+                        <span class="stat-value" id="stat-updates">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">High</span>
+                        <span class="stat-value" id="stat-high">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Low</span>
+                        <span class="stat-value" id="stat-low">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Avg</span>
+                        <span class="stat-value" id="stat-avg">--</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- MARKET DATA SECTION -->
+        <section class="market-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    <h2>Gold Market Prices</h2>
+                </div>
+                <div class="market-status-badge" id="market-status-badge">
+                    <span class="status-dot"></span>
+                    <span>Market Closed</span>
+                </div>
+            </div>
+
+            <div class="market-grid" id="market-grid">
+                <!-- Loading state -->
+                <div class="market-loading">
+                    <div class="loading-spinner"></div>
+                    <p>Loading market data...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- MANUAL UPDATE SECTION -->
+        <section class="update-section" id="manual-update-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    <h2>Manual Rate Update</h2>
+                </div>
+                <button class="text-btn" onclick="GoldSocketApp.toggleManualUpdate()">
+                    <span id="manual-toggle-text">Show</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="manual-toggle-icon">
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="update-form-wrapper" id="update-form-wrapper">
+                <form class="update-form" onsubmit="event.preventDefault(); GoldSocketApp.updateManualRate();">
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label class="form-label">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 19V5M5 12l7-7 7 7"/>
+                                </svg>
+                                Buy Rate
+                            </label>
+                            <div class="input-wrapper">
+                                <span class="input-prefix">฿</span>
+                                <input type="number" id="manual-buy" class="form-input" step="0.01" placeholder="0.00" required>
+                            </div>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5v14M5 12l7 7 7-7"/>
+                                </svg>
+                                Sell Rate
+                            </label>
+                            <div class="input-wrapper">
+                                <span class="input-prefix">฿</span>
+                                <input type="number" id="manual-sell" class="form-input" step="0.01" placeholder="0.00" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Update Rate
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="GoldSocketApp.clearManualForm()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                            Clear
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- JSON OUTPUT SECTION -->
+        <section class="json-section" id="json-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <h2>Raw JSON Data</h2>
+                </div>
+                <button class="icon-btn-sm" onclick="GoldSocketApp.copyJson()" title="Copy to clipboard">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                </button>
+            </div>
+            <pre class="json-output" id="json-output">// JSON data will appear here</pre>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+            <span class="footer-text">Last updated: <span id="last-update">Never</span></span>
+            <span class="footer-divider">•</span>
+            <span class="footer-text">Gold Socket v2.0</span>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

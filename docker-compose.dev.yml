@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile.dev
+    container_name: gold-socket-dev
+    ports:
+      - "8080:8080"
+    environment:
+      - SFTP_HOST=${SFTP_HOST:-}
+      - SFTP_PORT=${SFTP_PORT:-22}
+      - SFTP_USER=${SFTP_USER:-}
+      - SFTP_PASSWORD=${SFTP_PASSWORD:-}
+      - SFTP_REMOTE_PATH=${SFTP_REMOTE_PATH:-}
+      - SFTP_REMOTE_PATH2=${SFTP_REMOTE_PATH2:-}
+      - SFTP_LOCAL_PATH=/app/raw-data
+      - DOWNLOAD_INTERVAL_SECONDS=${DOWNLOAD_INTERVAL_SECONDS:-1}
+      - WEBSOCKET_PORT=8080
+      - STATIC_DIR=/app/web/static
+      - DATA_DIR=/app/raw-data
+      - REDIS_ENABLED=true
+      - REDIS_ADDR=redis:6379
+      - TZ=Asia/Bangkok
+    volumes:
+      - .:/app
+      - ./raw-data:/app/raw-data
+      - go-mod-cache:/go/pkg/mod
+    networks:
+      - gold-socket-dev-network
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    container_name: gold-socket-redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - gold-socket-dev-network
+
+volumes:
+  go-mod-cache:
+
+networks:
+  gold-socket-dev-network:
+    driver: bridge

@@ -1,0 +1,49 @@
+[Unit]
+Description=Gold Socket Exchange Rate Monitor
+Documentation=https://github.com/your-org/gold-socket
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=gold-socket
+Group=gold-socket
+WorkingDirectory=/opt/gold-socket
+ExecStart=/opt/gold-socket/server
+Restart=on-failure
+RestartSec=5s
+
+# Environment
+EnvironmentFile=/opt/gold-socket/.env
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+
+# Allow network access
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Allow write to data directory
+ReadWritePaths=/opt/gold-socket/raw-data
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gold-socket
+
+# Resource limits
+LimitNOFILE=65535
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

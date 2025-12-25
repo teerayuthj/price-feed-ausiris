@@ -2,8 +2,9 @@
 .env
 
 # Data directories
-raw-data/
+raw-data
 *.tmp
+.DS_Store
 
 # Compiled binaries
 gold-websocket
