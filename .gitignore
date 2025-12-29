@@ -32,3 +32,6 @@ logs/
 
 # Go workspace file
 go.work
+
+gold_socket
+server

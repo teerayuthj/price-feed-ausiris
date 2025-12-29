@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"gold-socket/internal/parser"
 	"gold-socket/internal/redis"
@@ -20,17 +21,48 @@ type Hub struct {
 	unregister chan *Client
 	mutex      sync.RWMutex
 	redis      *redis.Client
+
+	// Source status tracking
+	sourceStatus     string // "connected" or "disconnected"
+	lastSuccessTime  string // timestamp of last successful SFTP update
+	lastError        string // last error message
+	sourceMutex      sync.RWMutex
 }
 
 // NewHub creates a new Hub
 func NewHub(redisClient *redis.Client) *Hub {
 	return &Hub{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		redis:      redisClient,
+		clients:      make(map[*Client]bool),
+		broadcast:    make(chan []byte, 256),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		redis:        redisClient,
+		sourceStatus: "disconnected", // Start as disconnected until first successful fetch
 	}
+}
+
+// SetSourceConnected marks the data source as connected
+func (h *Hub) SetSourceConnected() {
+	h.sourceMutex.Lock()
+	defer h.sourceMutex.Unlock()
+	h.sourceStatus = "connected"
+	h.lastSuccessTime = parser.NowInBangkok().Format(time.RFC3339)
+	h.lastError = ""
+}
+
+// SetSourceDisconnected marks the data source as disconnected with error
+func (h *Hub) SetSourceDisconnected(err string) {
+	h.sourceMutex.Lock()
+	defer h.sourceMutex.Unlock()
+	h.sourceStatus = "disconnected"
+	h.lastError = err
+}
+
+// GetSourceStatus returns current source status
+func (h *Hub) GetSourceStatus() (status string, lastSuccess string, lastErr string) {
+	h.sourceMutex.RLock()
+	defer h.sourceMutex.RUnlock()
+	return h.sourceStatus, h.lastSuccessTime, h.lastError
 }
 
 // Run starts the hub event loop
@@ -70,7 +102,7 @@ func (h *Hub) Run(ctx context.Context) {
 	}
 }
 
-// sendInitialData sends current data to a newly connected client
+// sendInitialData sends current market data to a newly connected client
 func (h *Hub) sendInitialData(client *Client) {
 	// Recover from panic if channel is closed during send
 	defer func() {
@@ -78,18 +110,6 @@ func (h *Hub) sendInitialData(client *Client) {
 			log.Printf("Recovered from panic in sendInitialData: %v", r)
 		}
 	}()
-
-	data, err := parser.GetCurrentUSDRate()
-	if err != nil {
-		log.Printf("Error loading USD rate for new client: %v", err)
-		return
-	}
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		log.Printf("Error marshaling USD rate for new client: %v", err)
-		return
-	}
 
 	// Hold lock while checking and sending to prevent race condition
 	h.mutex.RLock()
@@ -99,13 +119,87 @@ func (h *Hub) sendInitialData(client *Client) {
 		return
 	}
 
-	// Try to send with non-blocking select
+	// Load and send market data with fresh market_status
+	jsonMessage, err := h.prepareMarketDataMessage()
+	if err != nil {
+		log.Printf("Error preparing market data for new client: %v", err)
+		return
+	}
+
 	select {
-	case client.send <- jsonData:
-		// Successfully sent
+	case client.send <- jsonMessage:
+		log.Printf("Sent initial market data to client")
 	default:
 		// Channel full or closed, skip
 	}
+}
+
+// PrepareMarketDataPayload loads market data and injects runtime status fields.
+func (h *Hub) PrepareMarketDataPayload() ([]byte, error) {
+	filePath := "./raw-data/market_data.json"
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var marketData map[string]interface{}
+	if err := json.Unmarshal(data, &marketData); err != nil {
+		return nil, err
+	}
+
+	// Get source status
+	sourceStatus, lastSuccess, lastErr := h.GetSourceStatus()
+	sourceConnected := sourceStatus == "connected"
+
+	// Check if price is valid (g965b_retail bid/offer must be > 0)
+	priceValid := h.isPriceValid(marketData)
+
+	// Update market_status based on time, source connection, and price validity
+	marketData["market_status"] = parser.GetMarketStatusWithData(sourceConnected, priceValid)
+
+	// Add source status info
+	marketData["source_status"] = sourceStatus
+	if lastSuccess != "" {
+		marketData["last_success_time"] = lastSuccess
+	}
+	if lastErr != "" {
+		marketData["last_error"] = lastErr
+	}
+
+	return json.Marshal(marketData)
+}
+
+// isPriceValid checks if the market data has valid prices (not zero)
+func (h *Hub) isPriceValid(marketData map[string]interface{}) bool {
+	// Check g965b_retail prices
+	if g965b, ok := marketData["g965b_retail"].(map[string]interface{}); ok {
+		bid, bidOk := g965b["bid"].(float64)
+		offer, offerOk := g965b["offer"].(float64)
+		if bidOk && offerOk && bid > 0 && offer > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// prepareMarketDataMessage loads market data and updates market_status in real-time
+func (h *Hub) prepareMarketDataMessage() ([]byte, error) {
+	updatedData, err := h.PrepareMarketDataPayload()
+	if err != nil {
+		return nil, err
+	}
+
+	message := models.WebSocketMessage{
+		Type: "market_data",
+		Data: json.RawMessage(updatedData),
+	}
+
+	return json.Marshal(message)
 }
 
 // broadcastToClients sends message to all connected clients
@@ -136,18 +230,38 @@ func (h *Hub) BroadcastData() {
 		return
 	}
 
+	// Get source status and check price validity
+	sourceStatus, _, _ := h.GetSourceStatus()
+	sourceConnected := sourceStatus == "connected"
+	priceValid := data.Buy > 0 && data.Sell > 0
+
+	// Override MarketStatus based on source connection and price validity
+	data.MarketStatus = parser.GetMarketStatusWithData(sourceConnected, priceValid)
+
+	// Wrap USD rate data in WebSocketMessage format for consistency
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		log.Printf("Error marshaling USD rate: %v", err)
 		return
 	}
 
-	h.broadcast <- jsonData
+	message := models.WebSocketMessage{
+		Type: "usd_rate",
+		Data: json.RawMessage(jsonData),
+	}
+
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Error marshaling USD rate message: %v", err)
+		return
+	}
+
+	h.broadcast <- jsonMessage
 
 	// Publish to Redis for other instances
 	if h.redis != nil {
 		ctx := context.Background()
-		h.redis.Publish(ctx, redis.ChannelUSDRate, jsonData)
+		h.redis.Publish(ctx, redis.ChannelUSDRate, jsonMessage)
 	}
 
 	log.Printf("Broadcasted USD rate to %d clients: Buy=%.2f, Sell=%.2f [%s/%s]",
@@ -159,27 +273,9 @@ func (h *Hub) BroadcastData() {
 
 // BroadcastMarketData broadcasts latest market data to all clients
 func (h *Hub) BroadcastMarketData() {
-	filePath := "./raw-data/market_data.json"
-
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		log.Printf("Market data file not found: %s", filePath)
-		return
-	}
-
-	data, err := os.ReadFile(filePath)
+	jsonMessage, err := h.prepareMarketDataMessage()
 	if err != nil {
-		log.Printf("Error reading market data: %v", err)
-		return
-	}
-
-	message := models.WebSocketMessage{
-		Type: "market_data",
-		Data: json.RawMessage(data),
-	}
-
-	jsonMessage, err := json.Marshal(message)
-	if err != nil {
-		log.Printf("Error marshaling market data message: %v", err)
+		log.Printf("Error preparing market data for broadcast: %v", err)
 		return
 	}
 
@@ -191,7 +287,7 @@ func (h *Hub) BroadcastMarketData() {
 		h.redis.Publish(ctx, redis.ChannelMarketData, jsonMessage)
 	}
 
-	log.Printf("Broadcasted market data to %d clients", len(h.clients))
+	log.Printf("Broadcasted market data to %d clients (market_status: %s)", len(h.clients), parser.GetMarketStatus())
 }
 
 // subscribeToRedis subscribes to Redis channels for multi-instance support

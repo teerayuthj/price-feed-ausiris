@@ -215,14 +215,16 @@
             // Try to parse as JSON
             const data = JSON.parse(message);
 
-            // Check if it's a wrapped message (market data)
-            if (data.type === 'market_data') {
+            // Check message type - all wrapped format
+            if (data.type === 'usd_rate') {
+                handleUSDRate(data.data);
+            } else if (data.type === 'market_data') {
                 handleMarketData(data.data);
             } else if (data.type) {
                 // Other wrapped message types
                 console.log('Received message type:', data.type);
             } else {
-                // Direct USD rate data
+                // Fallback: direct data (backward compatibility)
                 handleUSDRate(data);
             }
 

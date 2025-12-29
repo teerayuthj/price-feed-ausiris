@@ -31,7 +31,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	client := NewClient(h.hub, conn)
 	h.hub.Register(client)
 
-	ctx := r.Context()
+	// Use background context - r.Context() gets canceled when handler returns
+	ctx := context.Background()
 
 	// Start read and write pumps
 	go client.WritePump(ctx)

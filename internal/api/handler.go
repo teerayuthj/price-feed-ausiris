@@ -44,8 +44,24 @@ func (h *Handlers) DataHandler(w http.ResponseWriter, r *http.Request) {
 
 // MarketDataHandler handles market data API requests
 func (h *Handlers) MarketDataHandler(w http.ResponseWriter, r *http.Request) {
-	filePath := "./raw-data/market_data.json"
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	if h.hub != nil {
+		payload, err := h.hub.PrepareMarketDataPayload()
+		if err == nil {
+			w.Write(payload)
+			return
+		}
+		if os.IsNotExist(err) {
+			http.Error(w, "Market data not available", http.StatusNotFound)
+			return
+		}
+		http.Error(w, fmt.Sprintf("Error reading market data: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	filePath := "./raw-data/market_data.json"
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		http.Error(w, "Market data not available", http.StatusNotFound)
 		return
@@ -57,8 +73,6 @@ func (h *Handlers) MarketDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(data)
 }
 

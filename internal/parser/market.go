@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"gold-socket/pkg/models"
 )
@@ -107,7 +106,7 @@ func ParseMarketData(filePath string) (*models.MarketData, error) {
 			found["spot"], found["g965b"], found["g9999kg"], found["g9999g"])
 	}
 
-	now := time.Now()
+	now := NowInBangkok()
 
 	marketData := &models.MarketData{
 		Timestamp:     now,

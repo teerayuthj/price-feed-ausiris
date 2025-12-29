@@ -73,7 +73,17 @@ func (s *Scheduler) performDownload() {
 	err := sftp.DownloadFilesWithConfig(s.config)
 	if err != nil {
 		log.Printf("Scheduled download failed: %v", err)
+		// Mark source as disconnected
+		if s.hub != nil {
+			s.hub.SetSourceDisconnected(err.Error())
+			go s.hub.BroadcastMarketData()
+		}
 		return
+	}
+
+	// Mark source as connected (SFTP succeeded)
+	if s.hub != nil {
+		s.hub.SetSourceConnected()
 	}
 
 	// Update USD rate JSON from exrate.txt

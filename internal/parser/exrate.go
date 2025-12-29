@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"gold-socket/pkg/models"
 )
@@ -68,7 +67,7 @@ func GetLatestUSDRate(filePath string) (*models.USDRate, error) {
 	}
 
 	return &models.USDRate{
-		Timestamp: time.Now(),
+		Timestamp: NowInBangkok(),
 		Time:      timeStr,
 		Currency:  currency,
 		Buy:       RoundToTwoDecimals(buyRate),
@@ -172,7 +171,7 @@ func GetCurrentUSDRate() (*models.USDRateWithStatus, error) {
 
 // CreateManualUSDRate creates a manual USD rate entry
 func CreateManualUSDRate(buy, sell float64) error {
-	now := time.Now()
+	now := NowInBangkok()
 
 	rate := &models.USDRate{
 		Timestamp: now,
