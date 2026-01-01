@@ -68,6 +68,7 @@ func (c *Client) WritePump(ctx context.Context) {
 	defer func() {
 		pingTicker.Stop()
 		c.conn.CloseNow()
+		c.hub.Unregister(c)
 	}()
 
 	for {

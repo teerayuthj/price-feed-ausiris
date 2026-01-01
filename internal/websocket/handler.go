@@ -32,11 +32,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.hub.Register(client)
 
 	// Use background context - r.Context() gets canceled when handler returns
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start read and write pumps
-	go client.WritePump(ctx)
-	go client.ReadPump(ctx)
+	go func() {
+		defer cancel()
+		client.WritePump(ctx)
+	}()
+	go func() {
+		defer cancel()
+		client.ReadPump(ctx)
+	}()
 }
 
 // HandleFunc returns an http.HandlerFunc for WebSocket connections
@@ -59,8 +65,14 @@ func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	client := NewClient(hub, conn)
 	hub.Register(client)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 
-	go client.WritePump(ctx)
-	go client.ReadPump(ctx)
+	go func() {
+		defer cancel()
+		client.WritePump(ctx)
+	}()
+	go func() {
+		defer cancel()
+		client.ReadPump(ctx)
+	}()
 }
