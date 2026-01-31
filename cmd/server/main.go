@@ -2,26 +2,40 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"gold-socket/internal/api"
 	"gold-socket/internal/config"
+	"gold-socket/internal/logger"
 	"gold-socket/internal/redis"
 	"gold-socket/internal/scheduler"
 	"gold-socket/internal/sftp"
 	"gold-socket/internal/websocket"
 )
 
-func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+var logLevel string
 
-	// Check command line arguments
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
+func init() {
+	flag.StringVar(&logLevel, "log-level", "info", "Log level: error, warn, info")
+}
+
+func main() {
+	flag.Parse()
+
+	// Set log level from flag
+	if err := logger.SetLevelFromString(logLevel); err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid log level: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Check command line arguments (after flags)
+	args := flag.Args()
+	if len(args) > 0 {
+		switch args[0] {
 		case "download":
 			runDownload()
 			return
@@ -40,12 +54,12 @@ func main() {
 
 // runServer starts the WebSocket server with scheduled downloads
 func runServer() {
-	log.Println("Starting Gold Socket WebSocket Server")
+	logger.Println("Starting Gold Socket WebSocket Server")
 
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Printf("Warning: Could not load full config: %v", err)
+		logger.Warn("Could not load full config: %v", err)
 		cfg = config.LoadWithoutValidation()
 	}
 
@@ -62,10 +76,10 @@ func runServer() {
 			DB:       cfg.Redis.DB,
 		})
 		if err != nil {
-			log.Printf("Warning: Redis connection failed: %v (continuing without Redis)", err)
+			logger.Warn("Redis connection failed: %v (continuing without Redis)", err)
 			redisClient = nil
 		} else {
-			log.Printf("Connected to Redis at %s", cfg.Redis.Addr)
+			logger.Info("Connected to Redis at %s", cfg.Redis.Addr)
 			defer redisClient.Close()
 		}
 	}
@@ -78,9 +92,9 @@ func runServer() {
 	if cfg.SFTP.Host != "" {
 		sched := scheduler.New(&cfg.SFTP, cfg.Schedule.DownloadInterval, hub)
 		sched.Start(ctx)
-		log.Printf("Scheduled downloads enabled every %v", cfg.Schedule.DownloadInterval)
+		logger.Info("Scheduled downloads enabled every %v", cfg.Schedule.DownloadInterval)
 	} else {
-		log.Println("SFTP not configured, scheduled downloads disabled")
+		logger.Info("SFTP not configured, scheduled downloads disabled")
 	}
 
 	// Create and start HTTP server
@@ -88,15 +102,15 @@ func runServer() {
 
 	// Start server in goroutine
 	go func() {
-		log.Printf("WebSocket server starting on :%s", cfg.Server.Port)
-		log.Printf("WebSocket endpoint: ws://localhost:%s/ws", cfg.Server.Port)
-		log.Printf("USD Rate API: http://localhost:%s/api/data", cfg.Server.Port)
-		log.Printf("Market Data API: http://localhost:%s/api/market-data", cfg.Server.Port)
-		log.Printf("Health Check: http://localhost:%s/health", cfg.Server.Port)
-		log.Printf("Web interface: http://localhost:%s", cfg.Server.Port)
+		logger.Printf("WebSocket server starting on :%s", cfg.Server.Port)
+		logger.Printf("WebSocket endpoint: ws://localhost:%s/ws", cfg.Server.Port)
+		logger.Printf("USD Rate API: http://localhost:%s/api/data", cfg.Server.Port)
+		logger.Printf("Market Data API: http://localhost:%s/api/market-data", cfg.Server.Port)
+		logger.Printf("Health Check: http://localhost:%s/health", cfg.Server.Port)
+		logger.Printf("Web interface: http://localhost:%s", cfg.Server.Port)
 
 		if err := server.Start(); err != nil {
-			log.Fatalf("Server error: %v", err)
+			logger.Fatal("Server error: %v", err)
 		}
 	}()
 
@@ -105,41 +119,41 @@ func runServer() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 
-	log.Println("Shutting down...")
+	logger.Println("Shutting down...")
 	cancel()
 }
 
 // runDownload performs a one-time SFTP download
 func runDownload() {
-	log.Println("Running one-time SFTP download")
+	logger.Println("Running one-time SFTP download")
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Configuration error: %v", err)
+		logger.Fatal("Configuration error: %v", err)
 	}
 
-	log.Printf("Connecting to SFTP server: %s:%d", cfg.SFTP.Host, cfg.SFTP.Port)
-	log.Printf("Remote path 1: %s", cfg.SFTP.RemotePath)
+	logger.Printf("Connecting to SFTP server: %s:%d", cfg.SFTP.Host, cfg.SFTP.Port)
+	logger.Printf("Remote path 1: %s", cfg.SFTP.RemotePath)
 	if cfg.SFTP.RemotePath2 != "" {
-		log.Printf("Remote path 2: %s", cfg.SFTP.RemotePath2)
+		logger.Printf("Remote path 2: %s", cfg.SFTP.RemotePath2)
 	}
-	log.Printf("Local path: %s", cfg.SFTP.LocalPath)
+	logger.Printf("Local path: %s", cfg.SFTP.LocalPath)
 
 	err = sftp.DownloadFilesWithConfig(&cfg.SFTP)
 	if err != nil {
-		log.Fatalf("SFTP download failed: %v", err)
+		logger.Fatal("SFTP download failed: %v", err)
 	}
 
-	log.Println("SFTP download completed successfully!")
+	logger.Println("SFTP download completed successfully!")
 }
 
 // runContinuous runs continuous downloads without WebSocket server
 func runContinuous() {
-	log.Println("Starting continuous SFTP downloads (no WebSocket server)")
+	logger.Println("Starting continuous SFTP downloads (no WebSocket server)")
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Configuration error: %v", err)
+		logger.Fatal("Configuration error: %v", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -148,24 +162,30 @@ func runContinuous() {
 	sched := scheduler.New(&cfg.SFTP, cfg.Schedule.DownloadInterval, nil)
 	sched.Start(ctx)
 
-	log.Printf("Continuous downloads running every %v", cfg.Schedule.DownloadInterval)
+	logger.Printf("Continuous downloads running every %v", cfg.Schedule.DownloadInterval)
 
 	// Wait for shutdown signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 
-	log.Println("Shutting down...")
+	logger.Println("Shutting down...")
 	cancel()
 }
 
 // printUsage prints command usage
 func printUsage() {
 	fmt.Printf("Gold Socket - Real-time Exchange Rate Monitor\n\n")
-	fmt.Printf("Usage: %s [command]\n\n", os.Args[0])
-	fmt.Println("Commands:")
+	fmt.Printf("Usage: %s [options] [command]\n\n", os.Args[0])
+	fmt.Println("Options:")
+	fmt.Println("  -log-level string    Log level: error, warn, info (default \"info\")")
+	fmt.Println("\nCommands:")
 	fmt.Println("  (none)      Start WebSocket server with scheduled downloads (default)")
 	fmt.Println("  download    One-time SFTP download")
 	fmt.Println("  continuous  Continuous SFTP downloads (no WebSocket)")
 	fmt.Println("  help        Show this help message")
+	fmt.Println("\nExamples:")
+	fmt.Println("  gold-socket                    # Start server with info logs")
+	fmt.Println("  gold-socket -log-level=warn    # Start server with warn+ logs")
+	fmt.Println("  gold-socket -log-level=error download  # One-time download, errors only")
 }

@@ -3,7 +3,6 @@ package sftp
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"gold-socket/internal/config"
+	"gold-socket/internal/logger"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -101,7 +101,7 @@ func (c *Client) DownloadFile(remotePath, localPath string) error {
 func (c *Client) DownloadWithValidation(remotePath, localPath, filename string) (bool, error) {
 	tempPath := localPath + ".tmp"
 
-	log.Printf("Downloading: %s -> %s", remotePath, tempPath)
+	logger.Info("Downloading: %s -> %s", remotePath, tempPath)
 
 	err := c.DownloadFile(remotePath, tempPath)
 	if err != nil {
@@ -116,12 +116,12 @@ func (c *Client) DownloadWithValidation(remotePath, localPath, filename string) 
 			os.Remove(tempPath)
 			return false, fmt.Errorf("error moving temp file: %v", err)
 		}
-		log.Printf("Updated: %s (%s)", filename, reason)
+		logger.Info("Updated: %s (%s)", filename, reason)
 		return true, nil
 	}
 
 	os.Remove(tempPath)
-	log.Printf("Kept existing: %s (%s)", filename, reason)
+	logger.Info("Kept existing: %s (%s)", filename, reason)
 	return false, nil
 }
 
@@ -195,7 +195,7 @@ func (c *Client) DownloadFilesSelective(downloadFile1, downloadFile2 bool) error
 	}
 
 	if len(files) == 0 {
-		log.Printf("No files need to be downloaded")
+		logger.Info("No files need to be downloaded")
 		return nil
 	}
 
@@ -207,14 +207,14 @@ func (c *Client) DownloadFilesSelective(downloadFile1, downloadFile2 bool) error
 
 		shouldDownload, reason := c.shouldDownload(file.remotePath, localPath)
 		if !shouldDownload {
-			log.Printf("Skipping download: %s (%s)", file.filename, reason)
+			logger.Info("Skipping download: %s (%s)", file.filename, reason)
 			skippedCount++
 			continue
 		}
 
 		wasUpdated, err := c.DownloadWithValidation(file.remotePath, localPath, file.filename)
 		if err != nil {
-			log.Printf("Error downloading %s: %v", file.remotePath, err)
+			logger.Error("Error downloading %s: %v", file.remotePath, err)
 			hadError = true
 			continue
 		}
@@ -229,11 +229,11 @@ func (c *Client) DownloadFilesSelective(downloadFile1, downloadFile2 bool) error
 	}
 
 	if downloadCount == 0 {
-		log.Printf("No files updated (checked %d, skipped %d)", len(files)-skippedCount, skippedCount)
+		logger.Info("No files updated (checked %d, skipped %d)", len(files)-skippedCount, skippedCount)
 		return nil
 	}
 
-	log.Printf("Updated %d files in %s", downloadCount, c.config.LocalPath)
+	logger.Info("Updated %d files in %s", downloadCount, c.config.LocalPath)
 	return nil
 }
 

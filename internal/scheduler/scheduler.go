@@ -2,10 +2,10 @@ package scheduler
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"gold-socket/internal/config"
+	"gold-socket/internal/logger"
 	"gold-socket/internal/parser"
 	"gold-socket/internal/sftp"
 	"gold-socket/internal/websocket"
@@ -32,7 +32,7 @@ func New(cfg *config.SFTPConfig, interval time.Duration, hub *websocket.Hub) *Sc
 
 // Start begins the scheduled download process
 func (s *Scheduler) Start(ctx context.Context) {
-	log.Printf("Starting scheduled SFTP downloads every %v", s.interval)
+	logger.Printf("Starting scheduled SFTP downloads every %v", s.interval)
 
 	// Perform initial download
 	s.performDownload()
@@ -47,11 +47,11 @@ func (s *Scheduler) Start(ctx context.Context) {
 				s.performDownload()
 			case <-s.stopChan:
 				s.ticker.Stop()
-				log.Println("Scheduled downloader stopped")
+				logger.Println("Scheduled downloader stopped")
 				return
 			case <-ctx.Done():
 				s.ticker.Stop()
-				log.Println("Scheduled downloader stopped (context cancelled)")
+				logger.Println("Scheduled downloader stopped (context cancelled)")
 				return
 			}
 		}
@@ -67,12 +67,12 @@ func (s *Scheduler) Stop() {
 
 // performDownload executes the SFTP download with validation
 func (s *Scheduler) performDownload() {
-	log.Printf("Checking for server updates...")
+	logger.Info("Checking for server updates...")
 
 	// Download files from SFTP
 	err := sftp.DownloadFilesWithConfig(s.config)
 	if err != nil {
-		log.Printf("Scheduled download failed: %v", err)
+		logger.Error("Scheduled download failed: %v", err)
 		// Mark source as disconnected
 		if s.hub != nil {
 			s.hub.SetSourceDisconnected(err.Error())
@@ -89,13 +89,13 @@ func (s *Scheduler) performDownload() {
 	// Update USD rate JSON from exrate.txt
 	err = parser.UpdateUSDRateFromExrate()
 	if err != nil {
-		log.Printf("Failed to update JSON from exrate: %v", err)
+		logger.Error("Failed to update JSON from exrate: %v", err)
 	}
 
 	// Process market retail data to JSON
 	err = parser.ProcessMarketRetailData()
 	if err != nil {
-		log.Printf("Failed to process market retail data: %v", err)
+		logger.Error("Failed to process market retail data: %v", err)
 	}
 
 	// Trigger WebSocket broadcast if hub is available
@@ -114,6 +114,6 @@ func StartScheduledDownloads(ctx context.Context, hub *websocket.Hub, interval t
 	scheduler := New(&cfg.SFTP, interval, hub)
 	scheduler.Start(ctx)
 
-	log.Printf("Scheduled downloads started with %v interval", interval)
+	logger.Printf("Scheduled downloads started with %v interval", interval)
 	return nil
 }
