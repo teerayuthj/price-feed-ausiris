@@ -1,0 +1,29 @@
+name: Deploy UAT
+
+on:
+  push:
+    branches:
+      - uat
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ausiris-uat-deploy
+      cancel-in-progress: false
+    env:
+      DEPLOY_WORKSPACE: ${{ secrets.DEPLOY_WORKSPACE || '/Users/teerayutht/WorkSpace' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add deploy host
+        run: ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy UAT stack
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "cd ${DEPLOY_WORKSPACE} && make deploy-uat"

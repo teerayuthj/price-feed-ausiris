@@ -103,6 +103,8 @@ func runServer() {
 	// Start server in goroutine
 	go func() {
 		logger.Printf("WebSocket server starting on :%s", cfg.Server.Port)
+		logger.Printf("Environment: %s (%s)", cfg.Server.AppEnv, cfg.Server.ServiceName)
+		logger.Printf("Public Base URL: %s", cfg.Server.PublicBaseURL)
 		logger.Printf("WebSocket endpoint: ws://localhost:%s/ws", cfg.Server.Port)
 		logger.Printf("USD Rate API: http://localhost:%s/api/data", cfg.Server.Port)
 		logger.Printf("Market Data API: http://localhost:%s/api/market-data", cfg.Server.Port)

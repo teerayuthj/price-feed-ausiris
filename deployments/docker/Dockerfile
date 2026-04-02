@@ -20,6 +20,7 @@ RUN apk add --no-cache ca-certificates wget tzdata
 
 # Set timezone to Asia/Bangkok
 ENV TZ=Asia/Bangkok
+ENV WEBSOCKET_PORT=8080
 
 WORKDIR /app
 
@@ -33,6 +34,6 @@ RUN mkdir -p /app/raw-data
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget -q --spider http://localhost:8080/health || exit 1
+    CMD sh -c "wget -q --spider http://localhost:${WEBSOCKET_PORT}/health || exit 1"
 
 CMD ["./server"]

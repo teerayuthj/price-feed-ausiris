@@ -1,5 +1,9 @@
 # Environment and Config
 .env
+.env.uat
+.env.production
+.env.uat.local
+.env.production.local
 
 # Data directories
 raw-data

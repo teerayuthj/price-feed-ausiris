@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -30,9 +31,13 @@ type SFTPConfig struct {
 
 // ServerConfig holds HTTP/WebSocket server settings
 type ServerConfig struct {
-	Port      string
-	StaticDir string
-	DataDir   string
+	Port           string
+	StaticDir      string
+	DataDir        string
+	AppEnv         string
+	ServiceName    string
+	PublicBaseURL  string
+	AllowedOrigins []string
 }
 
 // RedisConfig holds Redis connection settings
@@ -65,9 +70,13 @@ func Load() (*Config, error) {
 			LocalPath:   getEnv("SFTP_LOCAL_PATH", "./raw-data"),
 		},
 		Server: ServerConfig{
-			Port:      getEnv("WEBSOCKET_PORT", "8080"),
-			StaticDir: getEnv("STATIC_DIR", "./web/static"),
-			DataDir:   getEnv("DATA_DIR", "./raw-data"),
+			Port:           getEnv("WEBSOCKET_PORT", "8080"),
+			StaticDir:      getEnv("STATIC_DIR", "./web/static"),
+			DataDir:        getEnv("DATA_DIR", "./raw-data"),
+			AppEnv:         getEnv("APP_ENV", "development"),
+			ServiceName:    getEnv("SERVICE_NAME", "gold-socket"),
+			PublicBaseURL:  getEnv("PUBLIC_BASE_URL", ""),
+			AllowedOrigins: getEnvList("ALLOWED_ORIGINS"),
 		},
 		Redis: RedisConfig{
 			Addr:     getEnv("REDIS_ADDR", "localhost:6379"),
@@ -103,9 +112,13 @@ func LoadWithoutValidation() *Config {
 			LocalPath:   getEnv("SFTP_LOCAL_PATH", "./raw-data"),
 		},
 		Server: ServerConfig{
-			Port:      getEnv("WEBSOCKET_PORT", "8080"),
-			StaticDir: getEnv("STATIC_DIR", "./web/static"),
-			DataDir:   getEnv("DATA_DIR", "./raw-data"),
+			Port:           getEnv("WEBSOCKET_PORT", "8080"),
+			StaticDir:      getEnv("STATIC_DIR", "./web/static"),
+			DataDir:        getEnv("DATA_DIR", "./raw-data"),
+			AppEnv:         getEnv("APP_ENV", "development"),
+			ServiceName:    getEnv("SERVICE_NAME", "gold-socket"),
+			PublicBaseURL:  getEnv("PUBLIC_BASE_URL", ""),
+			AllowedOrigins: getEnvList("ALLOWED_ORIGINS"),
 		},
 		Redis: RedisConfig{
 			Addr:     getEnv("REDIS_ADDR", "localhost:6379"),
@@ -133,4 +146,22 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func getEnvList(key string) []string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return nil
+	}
+
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+
+	return result
 }

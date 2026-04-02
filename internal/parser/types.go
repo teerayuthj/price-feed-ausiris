@@ -34,35 +34,38 @@ func RoundToTwoDecimals(value float64) float64 {
 }
 
 // IsMarketOpen checks if market is open based on time (Thai timezone)
-// Market hours: Monday 07:00 - Saturday 04:00 (21 hours/day)
+// Market hours:
+//   - Sunday: closed all day
+//   - Saturday: open until 11:00 only
+//   - Monday-Friday: open 06:00 - 04:00 next day
 func IsMarketOpen() bool {
 	now := NowInBangkok()
 	hour := now.Hour()
 	dayOfWeek := now.Weekday()
 
-	// Sunday: always closed
+	// Sunday: closed all day
 	if dayOfWeek == time.Sunday {
 		return false
 	}
 
-	// Saturday: open 00:00-04:00 only (continuation from Friday night)
+	// Saturday: open until 11:00 only
 	if dayOfWeek == time.Saturday {
-		return hour < 4
+		return hour < 11
 	}
 
-	// Monday: open from 07:00 onwards
+	// Monday: open from 06:00 onwards
 	if dayOfWeek == time.Monday {
-		return hour >= 7
+		return hour >= 6
 	}
 
 	// Tuesday-Friday:
 	// - 00:00-04:00: open (continuation from previous day)
-	// - 04:00-07:00: closed
-	// - 07:00-24:00: open
+	// - 04:00-06:00: closed
+	// - 06:00-24:00: open
 	if hour < 4 {
 		return true
 	}
-	if hour < 7 {
+	if hour < 6 {
 		return false
 	}
 	return true

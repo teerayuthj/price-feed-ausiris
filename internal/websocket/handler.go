@@ -10,18 +10,22 @@ import (
 
 // Handler handles WebSocket connections
 type Handler struct {
-	hub *Hub
+	hub            *Hub
+	originPatterns []string
 }
 
 // NewHandler creates a new WebSocket handler
-func NewHandler(hub *Hub) *Handler {
-	return &Handler{hub: hub}
+func NewHandler(hub *Hub, originPatterns []string) *Handler {
+	return &Handler{
+		hub:            hub,
+		originPatterns: originPatterns,
+	}
 }
 
 // ServeHTTP implements http.Handler for WebSocket upgrade
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true, // Allow all origins - configure properly in production
+		OriginPatterns: h.originPatterns,
 	})
 	if err != nil {
 		log.Printf("WebSocket accept error: %v", err)
@@ -54,9 +58,7 @@ func (h *Handler) HandleFunc() http.HandlerFunc {
 
 // ServeWS is a standalone function to handle WebSocket connections
 func ServeWS(hub *Hub, w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true,
-	})
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{})
 	if err != nil {
 		log.Printf("WebSocket accept error: %v", err)
 		return

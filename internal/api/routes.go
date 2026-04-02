@@ -17,7 +17,7 @@ type Server struct {
 
 // NewServer creates a new HTTP server
 func NewServer(cfg *config.ServerConfig, hub *websocket.Hub) *Server {
-	handlers := NewHandlers(hub)
+	handlers := NewHandlers(cfg, hub)
 	mux := http.NewServeMux()
 
 	server := &Server{
@@ -34,7 +34,7 @@ func NewServer(cfg *config.ServerConfig, hub *websocket.Hub) *Server {
 // setupRoutes configures HTTP routes
 func (s *Server) setupRoutes() {
 	// WebSocket endpoint
-	wsHandler := websocket.NewHandler(s.hub)
+	wsHandler := websocket.NewHandler(s.hub, s.config.AllowedOrigins)
 	s.mux.Handle("/ws", wsHandler)
 
 	// API endpoints

@@ -1,0 +1,50 @@
+services:
+  price-feed-uat:
+    build:
+      context: .
+      dockerfile: deployments/docker/Dockerfile
+    container_name: ausiris-price-feed-uat
+    restart: unless-stopped
+    ports:
+      - "${WEBSOCKET_PORT:-8081}:${WEBSOCKET_PORT:-8081}"
+    env_file:
+      - .env.uat
+    volumes:
+      - price_feed_uat_runtime:/app/runtime/uat
+    depends_on:
+      price-feed-uat-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:${WEBSOCKET_PORT:-8081}/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - price-feed-uat-internal
+      - edge
+
+  price-feed-uat-redis:
+    image: redis:7-alpine
+    container_name: price-feed-uat-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - price_feed_uat_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - price-feed-uat-internal
+
+volumes:
+  price_feed_uat_runtime:
+  price_feed_uat_redis:
+
+networks:
+  price-feed-uat-internal:
+  edge:
+    name: ausiris-edge
+    external: true

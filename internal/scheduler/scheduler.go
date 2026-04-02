@@ -67,6 +67,12 @@ func (s *Scheduler) Stop() {
 
 // performDownload executes the SFTP download with validation
 func (s *Scheduler) performDownload() {
+	// Check if market is open, skip if closed
+	if !parser.IsMarketOpen() {
+		logger.Info("Skipping download - market closed")
+		return
+	}
+
 	logger.Info("Checking for server updates...")
 
 	// Download files from SFTP

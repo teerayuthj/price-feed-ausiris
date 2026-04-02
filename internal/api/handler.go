@@ -7,25 +7,33 @@ import (
 	"net/http"
 	"os"
 
+	"gold-socket/internal/config"
 	"gold-socket/internal/parser"
 	"gold-socket/internal/websocket"
 )
 
 // Handlers holds HTTP handler dependencies
 type Handlers struct {
-	hub *websocket.Hub
+	config *config.ServerConfig
+	hub    *websocket.Hub
 }
 
 // NewHandlers creates new HTTP handlers
-func NewHandlers(hub *websocket.Hub) *Handlers {
-	return &Handlers{hub: hub}
+func NewHandlers(cfg *config.ServerConfig, hub *websocket.Hub) *Handlers {
+	return &Handlers{
+		config: cfg,
+		hub:    hub,
+	}
 }
 
 // HealthHandler handles health check requests
 func (h *Handlers) HealthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
+		"status":        "ok",
+		"appEnv":        h.config.AppEnv,
+		"serviceName":   h.config.ServiceName,
+		"publicBaseUrl": h.config.PublicBaseURL,
 	})
 }
 
@@ -38,14 +46,14 @@ func (h *Handlers) DataHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	h.applyCORSHeaders(w, r)
 	json.NewEncoder(w).Encode(data)
 }
 
 // MarketDataHandler handles market data API requests
 func (h *Handlers) MarketDataHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	h.applyCORSHeaders(w, r)
 
 	if h.hub != nil {
 		payload, err := h.hub.PrepareMarketDataPayload()
@@ -79,7 +87,7 @@ func (h *Handlers) MarketDataHandler(w http.ResponseWriter, r *http.Request) {
 // UpdateRateHandler handles manual rate update requests
 func (h *Handlers) UpdateRateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		h.applyCORSHeaders(w, r)
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.WriteHeader(http.StatusOK)
@@ -119,11 +127,26 @@ func (h *Handlers) UpdateRateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	h.applyCORSHeaders(w, r)
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":  "success",
 		"message": "USD rate updated",
 	})
+}
+
+func (h *Handlers) applyCORSHeaders(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return
+	}
+
+	for _, allowed := range h.config.AllowedOrigins {
+		if allowed == origin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			return
+		}
+	}
 }
 
 // StaticFileHandler serves static files
