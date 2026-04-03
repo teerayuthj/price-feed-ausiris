@@ -69,6 +69,15 @@ Rules:
 - `wholesale/v2`, `wholesale/v3`, and similar legacy long-lived branches are deprecated and must not be used as active merge targets.
 - For coordinated multi-repo work, use the same branch suffix in all touched repos, for example `feature/payment-batch-v2`, and link the related PRs together.
 
+### Solo Dev Rules
+
+- Keep the process lightweight: no approval rules are required if you are the only developer.
+- Do not start work on `main` directly.
+- Preferred daily flow: update `uat`, branch `feature/<topic>` from `uat`, commit there, then merge back to `uat` when ready to test.
+- When UAT is stable and ready for release, promote the same code from `uat` to `main`.
+- For urgent production fixes, branch `hotfix/<topic>` from `main`, merge it to `main`, then merge `main` back into `uat` immediately.
+- If a change touches more than one repo, keep the same branch suffix in all repos and promote them through `uat` together.
+
 ## Core Architecture
 
 ### Project Structure
