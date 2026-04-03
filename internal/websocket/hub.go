@@ -136,7 +136,7 @@ func (h *Hub) sendInitialData(client *Client) {
 
 // PrepareMarketDataPayload loads market data and injects runtime status fields.
 func (h *Hub) PrepareMarketDataPayload() ([]byte, error) {
-	filePath := "./raw-data/market_data.json"
+	filePath := parser.MarketJSONFilePath()
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, err

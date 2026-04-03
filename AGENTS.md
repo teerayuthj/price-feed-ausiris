@@ -55,6 +55,20 @@ Rules:
 - price-feed owns realtime gold price events
 ```
 
+## Git Workflow
+
+- Long-lived branches for this product are `main` and `uat` only.
+- `main` is the production-ready branch. Production deploys must come from `main`.
+- `uat` is the integration branch. UAT deploys must come from `uat`.
+- Start new work from `uat` using short-lived branches named `feature/<topic>`.
+- Start urgent production fixes from `main` using `hotfix/<topic>`.
+- Merge `feature/*` into `uat` only via PR. Promote to production via PR from `uat` to `main`.
+- Treat `uat` and `main` as protected branches: no direct pushes, require PRs, keep branches up to date, and require passing checks plus at least one review.
+- After merging a `hotfix/*` branch into `main`, back-merge the same fix from `main` to `uat` immediately.
+- Do not create long-lived branches for `local`, `development`, `test`, or `deploy`. Environment differences belong in env files, Compose files, CI, and deploy scripts.
+- `wholesale/v2`, `wholesale/v3`, and similar legacy long-lived branches are deprecated and must not be used as active merge targets.
+- For coordinated multi-repo work, use the same branch suffix in all touched repos, for example `feature/payment-batch-v2`, and link the related PRs together.
+
 ## Core Architecture
 
 ### Project Structure

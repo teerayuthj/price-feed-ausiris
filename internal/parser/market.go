@@ -11,11 +11,6 @@ import (
 	"gold-socket/pkg/models"
 )
 
-const (
-	DefaultMarketRetailFile = "./raw-data/market_retail.txt"
-	DefaultMarketJSONFile   = "./raw-data/market_data.json"
-)
-
 // ParseMarketData parses market_retail.txt and extracts required data
 func ParseMarketData(filePath string) (*models.MarketData, error) {
 	content, err := os.ReadFile(filePath)
@@ -140,16 +135,17 @@ func SaveMarketDataJSON(data *models.MarketData, filePath string) error {
 
 // ProcessMarketRetailData processes market_retail.txt and creates JSON
 func ProcessMarketRetailData() error {
-	if _, err := os.Stat(DefaultMarketRetailFile); os.IsNotExist(err) {
-		return fmt.Errorf("market retail file not found: %s", DefaultMarketRetailFile)
+	marketRetailFile := MarketRetailFilePath()
+	if _, err := os.Stat(marketRetailFile); os.IsNotExist(err) {
+		return fmt.Errorf("market retail file not found: %s", marketRetailFile)
 	}
 
-	marketData, err := ParseMarketData(DefaultMarketRetailFile)
+	marketData, err := ParseMarketData(marketRetailFile)
 	if err != nil {
 		return fmt.Errorf("failed to parse market data: %v", err)
 	}
 
-	err = SaveMarketDataJSON(marketData, DefaultMarketJSONFile)
+	err = SaveMarketDataJSON(marketData, MarketJSONFilePath())
 	if err != nil {
 		return fmt.Errorf("failed to save market data JSON: %v", err)
 	}
@@ -165,11 +161,12 @@ func ProcessMarketRetailData() error {
 
 // LoadMarketDataFromJSON loads market data from JSON file
 func LoadMarketDataFromJSON() (*models.MarketData, error) {
-	if _, err := os.Stat(DefaultMarketJSONFile); os.IsNotExist(err) {
+	marketJSONFile := MarketJSONFilePath()
+	if _, err := os.Stat(marketJSONFile); os.IsNotExist(err) {
 		return nil, fmt.Errorf("market data JSON file does not exist")
 	}
 
-	data, err := os.ReadFile(DefaultMarketJSONFile)
+	data, err := os.ReadFile(marketJSONFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read market data JSON: %v", err)
 	}

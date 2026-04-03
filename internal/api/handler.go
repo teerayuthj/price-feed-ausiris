@@ -69,7 +69,7 @@ func (h *Handlers) MarketDataHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath := "./raw-data/market_data.json"
+	filePath := parser.MarketJSONFilePath()
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		http.Error(w, "Market data not available", http.StatusNotFound)
 		return
