@@ -4,7 +4,19 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project Overview
 
-**Gold Socket** - Real-time USD exchange rate and gold price monitoring system with SFTP data collection, WebSocket broadcasting, and Redis support for scaling.
+**Ausiris Bullion Price Feed** (Gold Socket) - Real-time USD exchange rate and gold price monitoring system with SFTP data collection, WebSocket broadcasting, and Redis support for scaling.
+
+**Tech Stack:** Go 1.24, WebSocket (`coder/websocket`), SFTP, Redis, Docker, Make
+
+### Multi-Repo Architecture
+
+This service is one of three repos in the same product:
+
+| | Frontend | Backend API | Price Feed (this repo) |
+|---|---|---|---|
+| **Local path** | `/Users/teerayutht/WorkSpace/ausiris-bullion-web` | `/Users/teerayutht/WorkSpace/ausiris-bullion-api` | `/Users/teerayutht/WorkSpace/ausiris-bullion-price-feed` |
+| **Role** | UI, client-side state, rendering live prices | REST API, business logic, persistence, auth | WebSocket broadcast, market price ingestion, realtime delivery |
+| **Rule** | Never duplicate backend business logic | Single source of truth for pricing, inventory, orders | Single source of truth for realtime price events |
 
 ## Architecture
 
@@ -31,6 +43,7 @@ gold-socket/
 │   │   └── handler.go             # HTTP upgrade handler
 │   ├── scheduler/
 │   │   └── scheduler.go           # Periodic download scheduler
+│   ├── logger/                     # Centralized structured logging
 │   ├── redis/
 │   │   ├── client.go              # Redis connection and operations
 │   │   ├── cache.go               # Rate caching
@@ -58,11 +71,17 @@ gold-socket/
 │   ├── market_retail.txt
 │   ├── usd_rate.json
 │   └── market_data.json
-├── docker-compose.yml              # Production Docker Compose
+├── docker-compose.yml              # Legacy Docker Compose
 ├── docker-compose.dev.yml          # Development Docker Compose
+├── docker-compose.local.yml        # Local environment (port 8082)
+├── docker-compose.uat.yml          # UAT environment
+├── docker-compose.prod.yml         # Production environment
 ├── Makefile                        # Build automation
 ├── .air.toml                       # Hot reload config
 ├── .env.example                    # Environment template
+├── .env.stack.local                # Local Docker stack env (gitignored)
+├── .env.uat                        # UAT env
+├── .env.production                 # Production env
 ├── go.mod                          # Module: gold-socket
 └── go.sum
 ```
@@ -105,6 +124,10 @@ SFTP_REMOTE_PATH2=/home/webinfo/market_retail.txt
 SFTP_LOCAL_PATH=./raw-data
 
 # Server Configuration
+APP_ENV=development              # development | uat | production
+SERVICE_NAME=gold-socket
+PUBLIC_BASE_URL=http://localhost:8080/ws
+ALLOWED_ORIGINS=http://localhost:5173
 WEBSOCKET_PORT=8080
 STATIC_DIR=./web/static
 DATA_DIR=./raw-data
@@ -119,13 +142,25 @@ REDIS_PASSWORD=
 REDIS_DB=0
 ```
 
+### Multi-Environment Deploy
+
+| Environment | Compose File | Env File | Default Port |
+|-------------|-------------|----------|-------------|
+| Local | `docker-compose.local.yml` | `.env.stack.local` | 8082 |
+| Development | `docker-compose.dev.yml` | `.env` | 8080 |
+| UAT | `docker-compose.uat.yml` | `.env.uat` | configured |
+| Production | `docker-compose.prod.yml` | `.env.production` | configured |
+
+All environments use the same `deployments/docker/Dockerfile` but different env files. Runtime data stored in Docker volumes (`price_feed_<env>_runtime`).
+
 ## Development Commands
 
 ```bash
 # Build
 make build              # Build binary
-make build-linux        # Build for Linux
-make build-darwin       # Build for macOS
+make build-linux        # Build for Linux AMD64
+make build-darwin       # Build for macOS ARM64
+make build-all          # Build for all platforms
 
 # Run locally
 make run                # Run application
@@ -134,6 +169,7 @@ make run-continuous     # Continuous downloads only
 
 # Development with Docker
 make local-dev          # Start dev environment (App + Redis)
+make local-dev-detach   # Start detached
 make local-dev-down     # Stop dev environment
 make local-dev-logs     # View logs
 
@@ -154,6 +190,31 @@ make deps               # Download dependencies
 make deps-update        # Update dependencies
 make tidy               # Tidy modules
 ```
+
+## Git Workflow
+
+- Long-lived branches: `main` and `uat` only.
+- `main` = production-ready. `uat` = integration/testing.
+- Start new work from `uat` using `feature/<topic>` branches.
+- Urgent production fixes from `main` using `hotfix/<topic>`.
+- For coordinated multi-repo work, use the same branch suffix in all repos.
+
+### Solo Dev Rules
+
+- Preferred flow: update `uat`, branch `feature/<topic>`, commit, merge back to `uat`.
+- Promote `uat` to `main` when stable for release.
+- Hotfix: branch from `main`, merge to `main`, then back-merge to `uat`.
+
+**Commit format:** Thai language, structured:
+```
+feat: brief description
+
+- details
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+Prefixes: `feat:`, `fix:`, `refactor:`, `docs:`
 
 ## API Endpoints
 
@@ -277,9 +338,18 @@ sudo systemctl start gold-socket
 ## Key Features
 
 - **Modern WebSocket**: Uses `coder/websocket` with context-based operations
-- **Redis Scaling**: Pub/Sub for multi-instance support
+- **Centralized Logging**: Structured logging system with configurable log levels (`internal/logger/`)
+- **Redis Scaling**: Pub/Sub for multi-instance support (optional)
 - **Rate Caching**: Redis caching with 5-minute TTL
 - **Smart Validation**: Only updates if server data is valid
-- **Docker Ready**: Production and development Docker Compose
+- **Multi-Environment Docker**: Separate compose files for local, dev, UAT, production
 - **Hot Reload**: Air for development hot reload
 - **Graceful Shutdown**: Context-based cancellation
+
+## Critical Rules
+
+- Keep websocket payloads backward compatible unless explicitly requested
+- If payload shape changes, update the frontend WebSocket consumer (`ausiris-bullion-web/src/services/websocketGoldPriceService.ts`)
+- Do not hard-code frontend business rules here
+- Redis is optional; service must work without Redis
+- Prefer small, focused changes in `internal/` packages over large edits in `cmd/`

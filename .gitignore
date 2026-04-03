@@ -3,6 +3,7 @@
 .env.uat
 .env.production
 .env.local
+.env.stack.local
 .env.uat.local
 .env.production.local
 
