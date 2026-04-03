@@ -5,15 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"gold-socket/pkg/models"
-)
-
-const (
-	DefaultExrateFile = "raw-data/exrate.txt"
-	DefaultUSDJSONFile = "raw-data/usd_rate.json"
 )
 
 // GetLatestUSDRate reads the last line from exrate.txt and returns USD rate
@@ -77,7 +73,7 @@ func GetLatestUSDRate(filePath string) (*models.USDRate, error) {
 
 // LoadLatestUSDRate loads the latest USD rate from the default file
 func LoadLatestUSDRate() (*models.USDRate, error) {
-	return GetLatestUSDRate(DefaultExrateFile)
+	return GetLatestUSDRate(ExrateFilePath())
 }
 
 // SaveUSDRateToJSON saves USD rate to JSON file
@@ -102,9 +98,12 @@ func SaveUSDRateToJSON(rate *models.USDRate, isManual bool) error {
 		return fmt.Errorf("failed to marshal USD rate: %v", err)
 	}
 
-	os.MkdirAll("raw-data", 0755)
+	usdJSONFile := USDJSONFilePath()
+	if err := os.MkdirAll(filepath.Dir(usdJSONFile), 0755); err != nil {
+		return fmt.Errorf("failed to create data directory: %v", err)
+	}
 
-	err = os.WriteFile(DefaultUSDJSONFile, jsonData, 0644)
+	err = os.WriteFile(usdJSONFile, jsonData, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write JSON file: %v", err)
 	}
@@ -114,11 +113,12 @@ func SaveUSDRateToJSON(rate *models.USDRate, isManual bool) error {
 
 // LoadUSDRateFromJSON loads USD rate from JSON file
 func LoadUSDRateFromJSON() (*models.USDRateWithStatus, error) {
-	if _, err := os.Stat(DefaultUSDJSONFile); os.IsNotExist(err) {
+	usdJSONFile := USDJSONFilePath()
+	if _, err := os.Stat(usdJSONFile); os.IsNotExist(err) {
 		return nil, fmt.Errorf("JSON file does not exist")
 	}
 
-	data, err := os.ReadFile(DefaultUSDJSONFile)
+	data, err := os.ReadFile(usdJSONFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read JSON file: %v", err)
 	}

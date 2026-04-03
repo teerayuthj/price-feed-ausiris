@@ -202,6 +202,86 @@ clean:
 	$(GO) clean -cache
 
 # ============================================================================
+# UAT Deployment
+# ============================================================================
+
+.PHONY: deploy-uat
+deploy-uat:
+	@echo "🧪 Deploying UAT environment..."
+	docker compose -f docker-compose.uat.yml up --build -d
+	@echo "✅ UAT deployed!"
+	@echo "   WebSocket: http://localhost:8081"
+	@echo "   Health:    http://localhost:8081/health"
+
+.PHONY: down-uat
+down-uat:
+	@echo "Stopping UAT environment..."
+	docker compose -f docker-compose.uat.yml down
+
+.PHONY: restart-uat
+restart-uat: down-uat deploy-uat
+
+.PHONY: logs-uat
+logs-uat:
+	docker compose -f docker-compose.uat.yml logs -f
+
+.PHONY: status-uat
+status-uat:
+	@echo "UAT container status:"
+	docker compose -f docker-compose.uat.yml ps
+
+.PHONY: health-uat
+health-uat:
+	@echo "Checking UAT health..."
+	curl -s http://localhost:8081/health && echo "" || echo "(UAT not running)"
+
+.PHONY: clean-uat
+clean-uat:
+	@echo "Cleaning up UAT resources..."
+	docker compose -f docker-compose.uat.yml down -v --rmi all
+	@echo "✅ UAT cleanup complete!"
+
+# ============================================================================
+# Prod Deployment
+# ============================================================================
+
+.PHONY: deploy-prod
+deploy-prod:
+	@echo "🚀 Deploying PRODUCTION environment..."
+	docker compose -f docker-compose.prod.yml up --build -d
+	@echo "✅ Production deployed!"
+	@echo "   WebSocket: http://localhost:8080"
+	@echo "   Health:    http://localhost:8080/health"
+
+.PHONY: down-prod
+down-prod:
+	@echo "Stopping PRODUCTION environment..."
+	docker compose -f docker-compose.prod.yml down
+
+.PHONY: restart-prod
+restart-prod: down-prod deploy-prod
+
+.PHONY: logs-prod
+logs-prod:
+	docker compose -f docker-compose.prod.yml logs -f
+
+.PHONY: status-prod
+status-prod:
+	@echo "Production container status:"
+	docker compose -f docker-compose.prod.yml ps
+
+.PHONY: health-prod
+health-prod:
+	@echo "Checking Production health..."
+	curl -s http://localhost:8080/health && echo "" || echo "(Production not running)"
+
+.PHONY: clean-prod
+clean-prod:
+	@echo "Cleaning up Production resources..."
+	docker compose -f docker-compose.prod.yml down -v --rmi all
+	@echo "✅ Production cleanup complete!"
+
+# ============================================================================
 # Help
 # ============================================================================
 
@@ -226,11 +306,22 @@ help:
 	@echo "  local-dev-logs View dev environment logs"
 	@echo ""
 	@echo "Docker (Production):"
-	@echo "  docker-build   Build Docker images"
-	@echo "  docker-up      Start production containers"
-	@echo "  docker-down    Stop production containers"
-	@echo "  docker-logs    View container logs"
-	@echo "  docker-clean   Clean up Docker resources"
+	@echo "  deploy-prod      Deploy production (Docker Compose)"
+	@echo "  down-prod        Stop production containers"
+	@echo "  restart-prod     Restart production"
+	@echo "  logs-prod        View production logs"
+	@echo "  status-prod      Show production status"
+	@echo "  health-prod      Health check production"
+	@echo "  clean-prod       Clean production resources"
+	@echo ""
+	@echo "UAT Environment:"
+	@echo "  deploy-uat       Deploy UAT (Docker Compose)"
+	@echo "  down-uat         Stop UAT containers"
+	@echo "  restart-uat      Restart UAT"
+	@echo "  logs-uat         View UAT logs"
+	@echo "  status-uat       Show UAT status"
+	@echo "  health-uat       Health check UAT"
+	@echo "  clean-uat        Clean UAT resources"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test           Run tests"
